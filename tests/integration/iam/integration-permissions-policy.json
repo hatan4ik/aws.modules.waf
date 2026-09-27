@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateTheWebAclUnderTest",
+      "Effect": "Allow",
+      "Action": [
+        "wafv2:CreateWebACL"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageTheWebAclUnderTest",
+      "Effect": "Allow",
+      "Action": [
+        "wafv2:GetWebACL",
+        "wafv2:UpdateWebACL",
+        "wafv2:DeleteWebACL",
+        "wafv2:TagResource",
+        "wafv2:UntagResource",
+        "wafv2:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:wafv2:*:<ACCOUNT_ID>:regional/webacl/waf-smoke-*/*"
+    }
+  ]
+}
