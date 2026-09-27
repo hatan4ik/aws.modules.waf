@@ -299,4 +299,53 @@ Security reports go through [SECURITY.md](SECURITY.md).
 Apache-2.0. See [LICENSE](LICENSE).
 
 <!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.7.0, < 2.0.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 6.35.0, < 7.0.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.35.0, < 7.0.0 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_wafv2_web_acl.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl) | resource |
+| [aws_wafv2_web_acl_logging_configuration.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl_logging_configuration) | resource |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_cloudwatch_metrics_enabled"></a> [cloudwatch\_metrics\_enabled](#input\_cloudwatch\_metrics\_enabled) | Whether AWS publishes CloudWatch metrics, applied to the web ACL's own visibility config and to every rule's. No per-rule override is exposed. | `bool` | `true` | no |
+| <a name="input_custom_response_bodies"></a> [custom\_response\_bodies](#input\_custom\_response\_bodies) | Custom response bodies made available to this web ACL for a block or challenge custom response, keyed by the key a rule or the default action references. content\_type is TEXT\_PLAIN, TEXT\_HTML, or APPLICATION\_JSON; content is the body, 1 to 10240 bytes. Defaults to none. | <pre>map(object({<br/>    content      = string<br/>    content_type = string<br/>  }))</pre> | `{}` | no |
+| <a name="input_default_action"></a> [default\_action](#input\_default\_action) | Action for a request that no rule matches. allow (default) is the standard WAF posture: the ACL passes non-matching traffic through and managed or custom rules block what is malicious. block makes the ACL default-deny: every request that should get through must match a rule with an allow action. | `string` | `"allow"` | no |
+| <a name="input_ip_set_rules"></a> [ip\_set\_rules](#input\_ip\_set\_rules) | Allow or block rules referencing IP sets created and managed elsewhere (an IP set is its own lifecycle; this module does not create one), keyed by a short logical name that becomes the rule's name (unique across managed\_rule\_groups, rate\_based\_rules, and ip\_set\_rules) and, stripped of non-alphanumeric characters, its CloudWatch metric name. ip\_set\_arn is the ARN of an aws\_wafv2\_ip\_set matching this ACL's own scope and region — a REGIONAL set for a REGIONAL web ACL, a CLOUDFRONT (us-east-1) set for a CLOUDFRONT web ACL; a scope mismatch is rejected by AWS at apply time, since it is not visible from the ARN alone. priority must be unique across every rule in the ACL. action is allow or block. Defaults to none. | <pre>map(object({<br/>    ip_set_arn = string<br/>    priority   = number<br/>    action     = string<br/>  }))</pre> | `{}` | no |
+| <a name="input_logging_configuration"></a> [logging\_configuration](#input\_logging\_configuration) | Enables web ACL logging when set. log\_destination\_arn is a Kinesis Data Firehose delivery stream, CloudWatch Logs log group, or S3 bucket ARN that the caller creates and owns; the module grants no permissions and creates no destination. redacted\_fields lists request fields AWS omits from the logged payload, defaulting to the Authorization header even if the caller does not think to ask; the only field this module can redact is a named header (single\_header) — redact the method, query string, URI path, or body by composing aws\_wafv2\_web\_acl\_logging\_configuration directly. Defaults to no logging. | <pre>object({<br/>    log_destination_arn = string<br/>    redacted_fields = optional(list(object({<br/>      single_header = optional(string)<br/>    })), [{ single_header = "authorization" }])<br/>  })</pre> | `null` | no |
+| <a name="input_managed_rule_groups"></a> [managed\_rule\_groups](#input\_managed\_rule\_groups) | AWS or Marketplace managed rule groups, keyed by a short logical name that becomes the rule's name (unique across managed\_rule\_groups, rate\_based\_rules, and ip\_set\_rules) and, stripped of non-alphanumeric characters, its CloudWatch metric name. name is the managed rule group's own AWS name (for example AWSManagedRulesCommonRuleSet); vendor\_name defaults to AWS. priority orders evaluation and must be unique across every rule in the ACL — AWS evaluates lower numbers first. override\_action is none (the group's own per-rule actions apply) or count (every rule in the group only counts a match, never blocks; see the managed\_rule\_group\_count\_mode check). excluded\_rules names rules within the group to force into count mode individually, the modern equivalent of the deprecated per-group excluded\_rule; rule\_action\_overrides maps a rule name to allow, block, count, captcha, or challenge for finer per-rule control. A rule name must not appear in both. version pins a specific managed rule group version; omit it to track AWS's default (usually latest) version. Defaults to AWS's Core rule set alone at priority 1, so a bare call is still meaningfully protected. | <pre>map(object({<br/>    name                  = string<br/>    vendor_name           = optional(string, "AWS")<br/>    priority              = number<br/>    override_action       = optional(string, "none")<br/>    excluded_rules        = optional(set(string), [])<br/>    rule_action_overrides = optional(map(string), {})<br/>    version               = optional(string)<br/>  }))</pre> | <pre>{<br/>  "common": {<br/>    "name": "AWSManagedRulesCommonRuleSet",<br/>    "priority": 1<br/>  }<br/>}</pre> | no |
+| <a name="input_name"></a> [name](#input\_name) | Name of the WAFv2 web ACL. Also the base for the CloudWatch metric names of the ACL and every rule, which AWS restricts to letters and digits: each metric name is derived by stripping every other character, so every name and rule key must contain at least one letter or digit and stay distinct after stripping (a precondition names a collision). | `string` | n/a | yes |
+| <a name="input_rate_based_rules"></a> [rate\_based\_rules](#input\_rate\_based\_rules) | Rate-based rules, keyed by a short logical name that becomes the rule's name (unique across managed\_rule\_groups, rate\_based\_rules, and ip\_set\_rules) and, stripped of non-alphanumeric characters, its CloudWatch metric name. limit is the request count in a trailing 5-minute window that trips the rule, between AWS's documented bounds of 100 and 2,000,000,000. aggregate\_key\_type buckets requests by source IP (IP, the default) or by the IP found in a trusted X-Forwarded-For header with a MATCH fallback, so a request missing the header still counts (FORWARDED\_IP); AWS's CUSTOM\_KEYS aggregation is out of scope. priority must be unique across every rule in the ACL. action is block (default), count, captcha, or challenge. scope\_down\_statement\_json narrows which requests count toward the limit; this module renders exactly one shape, a label match against a label an earlier rule in the same ACL added — {"scope": "LABEL", "key": "<label>"} or {"scope": "NAMESPACE", "key": "<namespace>"}. Anything more elaborate (byte or geo match, IP set reference, boolean compositions) is out of scope for this string escape hatch; compose aws\_wafv2\_web\_acl directly for that. Defaults to none, so no rate limiting applies unless declared. | <pre>map(object({<br/>    limit                     = number<br/>    aggregate_key_type        = optional(string, "IP")<br/>    priority                  = number<br/>    action                    = optional(string, "block")<br/>    scope_down_statement_json = optional(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_region"></a> [region](#input\_region) | Region this web ACL, and its logging configuration when logging\_configuration is set, are created in. Passed straight through as the resource's own region argument, so the result does not depend on which region the caller's default provider happens to be configured for. Required and must be "us-east-1" when scope = "CLOUDFRONT" — the only region WAFv2 accepts a CLOUDFRONT-scope web ACL from. Terraform cannot read a provider's configured region from inside a module and cannot force a resource into a region the caller's credentials cannot reach, so this is a caller-declared value the module both validates and applies: setting region = "us-east-1" here does not by itself grant access to that region, your credentials must have it too. Optional and unused by default for scope = "REGIONAL" (the ACL takes the provider's own region); set it there only to pin the ACL to a specific region in a multi-region root. | `string` | `null` | no |
+| <a name="input_sampled_requests_enabled"></a> [sampled\_requests\_enabled](#input\_sampled\_requests\_enabled) | Whether AWS samples matched requests, applied to the web ACL's own visibility config and to every rule's. No per-rule override is exposed. | `bool` | `true` | no |
+| <a name="input_scope"></a> [scope](#input\_scope) | Where the web ACL is enforced: REGIONAL (an Application Load Balancer, API Gateway REST API, AppSync GraphQL API, Cognito user pool, App Runner service, or Verified Access instance) or CLOUDFRONT (a CloudFront distribution — AWS reads CLOUDFRONT-scope web ACLs from us-east-1 only, whatever region the distribution itself serves; see region). No default: the choice is deliberate, never inherited. | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to the web ACL. | `map(string)` | `{}` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | ARN of the web ACL. Attach it to an ALB, CloudFront distribution, or other supported resource. |
+| <a name="output_web_acl_capacity"></a> [web\_acl\_capacity](#output\_web\_acl\_capacity) | Web ACL capacity units (WCU) consumed by the declared rules, as computed by AWS. Compare against the account's WCU quota (1,500 by default, adjustable) before adding more rules. |
+| <a name="output_web_acl_id"></a> [web\_acl\_id](#output\_web\_acl\_id) | ID of the web ACL. |
+| <a name="output_web_acl_name"></a> [web\_acl\_name](#output\_web\_acl\_name) | Name of the web ACL. |
 <!-- END_TF_DOCS -->
