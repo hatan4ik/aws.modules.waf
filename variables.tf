@@ -150,7 +150,7 @@ variable "rate_based_rules" {
     condition = alltrue([
       for r in values(var.rate_based_rules) : r.scope_down_statement_json == null ? true : (
         can(jsondecode(r.scope_down_statement_json)) ? (
-          setsubtract(toset(keys(jsondecode(r.scope_down_statement_json))), toset(["scope", "key"])) == toset([]) &&
+          length(setsubtract(toset(keys(jsondecode(r.scope_down_statement_json))), toset(["scope", "key"]))) == 0 &&
           contains(["LABEL", "NAMESPACE"], try(jsondecode(r.scope_down_statement_json).scope, "")) &&
           try(length(jsondecode(r.scope_down_statement_json).key), 0) > 0
         ) : false
