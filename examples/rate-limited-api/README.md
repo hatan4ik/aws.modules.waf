@@ -1,10 +1,14 @@
 # Rate-limited API
 
 A regional web ACL for an API: the Common rule set plus Bot Control, and two
-rate-based rules layered on top. `api_traffic` limits general traffic by the
-IP found in a trusted `X-Forwarded-For` header (`aggregate_key_type =
-"FORWARDED_IP"`, which the module renders with a fixed `header_name` and a
-fail-closed `MATCH` fallback). `suspected_bots` uses
+rate-based rules layered on top. `api_traffic` limits general traffic by
+source IP (`aggregate_key_type = "IP"`, the default): the address of the
+connection that reached the load balancer or API, which a client cannot
+forge. `FORWARDED_IP` is deliberately not used here: with the web ACL
+attached directly to an internet-facing resource and no trusted proxy in
+front, the client controls `X-Forwarded-For` and can rotate it on every
+request to dodge the limit entirely. Use `FORWARDED_IP` only behind a proxy
+you control that overwrites that header. `suspected_bots` uses
 `scope_down_statement_json` to apply a much lower limit to requests Bot
 Control already labeled `non_browser_user_agent` — the AWS-recommended way to
 combine a managed rule group with a rate limit, and the one shape this
