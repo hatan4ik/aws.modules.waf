@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-This release contains a breaking input change (`redacted_fields`), so it is versioned **2.0.0**. No known consumer instantiates this module yet (checked across the `hatan4ik` organisation; `aws.modules.alb`'s `with-waf` example takes a plain ACL ARN), so migration cost is nil in practice, but the published v1 contract changed, and Semantic Versioning, which this file commits to, makes that a major bump.
+This release contains a breaking input change (`redacted_fields`), so it is versioned **2.0.0**. No known consumer instantiates this module yet (checked across the `hatan4ik` organisation; `aws.modules.alb`'s `with-waf` example takes a plain ACL ARN), so migration cost is nil in practice, but the published v1 contract changed, and Semantic Versioning, which this file commits to, makes that a major bump. See [docs/UPGRADE-2.0.0.md](docs/UPGRADE-2.0.0.md).
 
 ### Changed (breaking)
 
