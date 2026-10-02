@@ -49,6 +49,28 @@ run "region_must_look_like_a_region_code" {
   expect_failures = [var.region]
 }
 
+run "region_must_not_have_a_partition_typo" {
+  command = plan
+  variables {
+    region = "us-gv-west-1-a"
+  }
+  expect_failures = [var.region]
+}
+
+run "region_accepts_govcloud_and_iso_region_codes" {
+  command = plan
+  variables {
+    region = "us-gov-west-1"
+  }
+}
+
+run "region_accepts_iso_region_codes" {
+  command = plan
+  variables {
+    region = "us-isob-east-1"
+  }
+}
+
 run "default_action_must_be_allow_or_block" {
   command = plan
   variables {
@@ -174,11 +196,30 @@ run "rate_based_rules_key_must_match_the_pattern" {
   expect_failures = [var.rate_based_rules]
 }
 
-run "rate_based_rules_limit_must_be_at_least_100" {
+run "rate_based_rules_limit_must_be_at_least_10" {
   command = plan
   variables {
     rate_based_rules = {
-      api = { limit = 99, priority = 10 }
+      api = { limit = 9, priority = 10 }
+    }
+  }
+  expect_failures = [var.rate_based_rules]
+}
+
+run "rate_based_rules_limit_accepts_the_aws_minimum_of_10" {
+  command = plan
+  variables {
+    rate_based_rules = {
+      api = { limit = 10, priority = 10 }
+    }
+  }
+}
+
+run "rate_based_rules_limit_must_be_a_whole_number" {
+  command = plan
+  variables {
+    rate_based_rules = {
+      api = { limit = 100.5, priority = 10 }
     }
   }
   expect_failures = [var.rate_based_rules]
@@ -356,12 +397,68 @@ run "logging_configuration_log_destination_arn_must_be_a_known_shape" {
   expect_failures = [var.logging_configuration]
 }
 
-run "logging_configuration_redacted_fields_single_header_must_be_non_empty" {
+run "logging_configuration_log_group_name_must_start_with_aws_waf_logs" {
   command = plan
   variables {
     logging_configuration = {
       log_destination_arn = "arn:aws:logs:us-east-2:123456789012:log-group:/aws/waf/example-acl"
-      redacted_fields     = [{ single_header = "" }]
+    }
+  }
+  expect_failures = [var.logging_configuration]
+}
+
+run "logging_configuration_firehose_name_must_start_with_aws_waf_logs" {
+  command = plan
+  variables {
+    logging_configuration = {
+      log_destination_arn = "arn:aws:firehose:us-east-2:123456789012:deliverystream/waf-logs-example"
+    }
+  }
+  expect_failures = [var.logging_configuration]
+}
+
+run "logging_configuration_s3_bucket_name_must_start_with_aws_waf_logs" {
+  command = plan
+  variables {
+    logging_configuration = {
+      # The prefix must be on the bucket name itself, not on a key prefix.
+      log_destination_arn = "arn:aws:s3:::example-logs/aws-waf-logs-example"
+    }
+  }
+  expect_failures = [var.logging_configuration]
+}
+
+run "logging_configuration_must_be_in_us_east_1_for_cloudfront_scope" {
+  command = plan
+  variables {
+    scope  = "CLOUDFRONT"
+    region = "us-east-1"
+    logging_configuration = {
+      log_destination_arn = "arn:aws:firehose:us-west-2:123456789012:deliverystream/aws-waf-logs-example"
+    }
+  }
+  # Both region preconditions fire: the CLOUDFRONT-specific one and the
+  # general same-region one (region is us-east-1 here).
+  expect_failures = [aws_wafv2_web_acl_logging_configuration.this]
+}
+
+run "logging_configuration_must_be_in_the_pinned_region_for_regional_scope" {
+  command = plan
+  variables {
+    region = "eu-west-1"
+    logging_configuration = {
+      log_destination_arn = "arn:aws:logs:us-east-2:123456789012:log-group:aws-waf-logs-example-acl"
+    }
+  }
+  expect_failures = [aws_wafv2_web_acl_logging_configuration.this]
+}
+
+run "logging_configuration_redacted_fields_entries_must_be_non_empty" {
+  command = plan
+  variables {
+    logging_configuration = {
+      log_destination_arn = "arn:aws:logs:us-east-2:123456789012:log-group:aws-waf-logs-example-acl"
+      redacted_fields     = [""]
     }
   }
   expect_failures = [var.logging_configuration]

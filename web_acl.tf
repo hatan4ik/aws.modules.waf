@@ -97,7 +97,7 @@ resource "aws_wafv2_web_acl" "this" {
       visibility_config {
         cloudwatch_metrics_enabled = var.cloudwatch_metrics_enabled
         sampled_requests_enabled   = var.sampled_requests_enabled
-        metric_name                = replace(rule.key, "/[^A-Za-z0-9]/", "")
+        metric_name                = local.rule_metric_names[rule.key]
       }
     }
   }
@@ -163,7 +163,7 @@ resource "aws_wafv2_web_acl" "this" {
       visibility_config {
         cloudwatch_metrics_enabled = var.cloudwatch_metrics_enabled
         sampled_requests_enabled   = var.sampled_requests_enabled
-        metric_name                = replace(rule.key, "/[^A-Za-z0-9]/", "")
+        metric_name                = local.rule_metric_names[rule.key]
       }
     }
   }
@@ -195,7 +195,7 @@ resource "aws_wafv2_web_acl" "this" {
       visibility_config {
         cloudwatch_metrics_enabled = var.cloudwatch_metrics_enabled
         sampled_requests_enabled   = var.sampled_requests_enabled
-        metric_name                = replace(rule.key, "/[^A-Za-z0-9]/", "")
+        metric_name                = local.rule_metric_names[rule.key]
       }
     }
   }

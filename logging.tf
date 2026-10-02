@@ -14,13 +14,21 @@ resource "aws_wafv2_web_acl_logging_configuration" "this" {
     for_each = local.redacted_fields
 
     content {
-      dynamic "single_header" {
-        for_each = redacted_fields.value.single_header == null ? [] : [redacted_fields.value.single_header]
-
-        content {
-          name = single_header.value
-        }
+      single_header {
+        name = redacted_fields.value
       }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.scope != "CLOUDFRONT" || contains(["", "us-east-1"], local.logging_destination_region)
+      error_message = "logging_configuration.log_destination_arn must be in us-east-1 when scope = \"CLOUDFRONT\": AWS WAF only delivers a CLOUDFRONT-scope web ACL's logs to a Firehose delivery stream or CloudWatch Logs log group in us-east-1. Got region \"${local.logging_destination_region}\"."
+    }
+
+    precondition {
+      condition     = var.region == null || contains(["", var.region], local.logging_destination_region)
+      error_message = "logging_configuration.log_destination_arn must be in the web ACL's own region: AWS WAF only delivers logs to a Firehose delivery stream or CloudWatch Logs log group in the same region as the web ACL. region is \"${coalesce(var.region, "unset")}\", the destination is in \"${local.logging_destination_region}\"."
     }
   }
 }
