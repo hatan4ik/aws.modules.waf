@@ -111,6 +111,12 @@ supported shape.
   `fallback_behavior = "MATCH"` (a request missing the header still counts,
   the fail-closed choice). A caller trusting a different header composes the
   resource directly.
+  `FORWARDED_IP` is only as trustworthy as whatever sets that header: on a
+  web ACL attached directly to an internet-facing resource the client writes
+  `X-Forwarded-For` itself and can rotate it per request, so every request
+  lands in a new aggregation bucket and the limit never trips. Use it only
+  behind a proxy you control that overwrites the header; `IP` is the safe
+  default (see `examples/rate-limited-api`).
 - `managed_rule_groups[*].excluded_rules` and `rule_action_overrides` both
   render as `rule_action_override` blocks — AWS removed the older, simpler
   `excluded_rule` block from the provider this module targets in favor of

@@ -23,20 +23,27 @@ module "waf" {
   }
 
   # Requests AWS's Bot Control already labeled as a non-browser user agent
-  # get a much lower rate limit than the general API traffic; everything
-  # else is limited by source IP found in the load balancer's
-  # X-Forwarded-For header.
+  # get a much lower rate limit than the general API traffic. Both rules
+  # aggregate by IP (the default): the address of the connection that reached
+  # the protected resource. A REGIONAL web ACL attached directly to an
+  # internet-facing ALB or API Gateway sees the real client address there.
+  #
+  # Do not switch to FORWARDED_IP in this topology. With no trusted proxy in
+  # front, the client writes X-Forwarded-For itself and can put a different
+  # address in it on every request, so each request lands in a fresh bucket
+  # and the limit never trips. FORWARDED_IP is only safe behind a proxy you
+  # control (CloudFront, say) that overwrites the header, and even then the
+  # simpler option is usually to attach a CLOUDFRONT-scope web ACL at that
+  # proxy and keep IP aggregation.
   rate_based_rules = {
     api_traffic = {
-      limit              = 5000
-      priority           = 10
-      aggregate_key_type = "FORWARDED_IP"
+      limit    = 5000
+      priority = 10
     }
     suspected_bots = {
-      limit              = 200
-      priority           = 11
-      aggregate_key_type = "FORWARDED_IP"
-      action             = "block"
+      limit    = 200
+      priority = 11
+      action   = "block"
       scope_down_statement_json = jsonencode({
         scope = "LABEL"
         key   = "awswaf:managed:aws:bot-control:signal:non_browser_user_agent"

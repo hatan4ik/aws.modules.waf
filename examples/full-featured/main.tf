@@ -101,10 +101,7 @@ module "waf" {
 
   logging_configuration = {
     log_destination_arn = aws_cloudwatch_log_group.waf.arn
-    redacted_fields = [
-      { single_header = "authorization" },
-      { single_header = "cookie" },
-    ]
+    redacted_fields     = ["authorization", "cookie"]
   }
 
   tags = { Environment = "dev", Owner = "platform" }

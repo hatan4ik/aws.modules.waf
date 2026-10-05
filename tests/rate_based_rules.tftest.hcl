@@ -77,6 +77,10 @@ run "scope_down_statement_json_renders_label_match" {
     }
   }
 
+  # No Bot Control group precedes the rule, so the label it scopes down to has
+  # no emitter; the rendering is still what this run pins.
+  expect_failures = [check.scope_down_label_has_an_emitter]
+
   assert {
     condition = anytrue([
       for r in aws_wafv2_web_acl.this.rule : (

@@ -28,8 +28,8 @@ variable "region" {
   default     = null
 
   validation {
-    condition     = var.region == null ? true : can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.region))
-    error_message = "region, when set, must be an AWS region code such as us-east-1."
+    condition     = var.region == null ? true : can(regex("^[a-z]{2}-(gov-|iso-|isob-)?[a-z]+-[0-9]$", var.region))
+    error_message = "region, when set, must be an AWS region code such as us-east-1, including GovCloud and ISO partition regions such as us-gov-west-1 or us-iso-east-1."
   }
 }
 
@@ -110,7 +110,7 @@ variable "managed_rule_groups" {
 }
 
 variable "rate_based_rules" {
-  description = "Rate-based rules, keyed by a short logical name that becomes the rule's name (unique across managed_rule_groups, rate_based_rules, and ip_set_rules) and, stripped of non-alphanumeric characters, its CloudWatch metric name. limit is the request count in a trailing 5-minute window that trips the rule, between AWS's documented bounds of 100 and 2,000,000,000. aggregate_key_type buckets requests by source IP (IP, the default) or by the IP found in a trusted X-Forwarded-For header with a MATCH fallback, so a request missing the header still counts (FORWARDED_IP); AWS's CUSTOM_KEYS aggregation is out of scope. priority must be unique across every rule in the ACL. action is block (default), count, captcha, or challenge. scope_down_statement_json narrows which requests count toward the limit; this module renders exactly one shape, a label match against a label an earlier rule in the same ACL added — {\"scope\": \"LABEL\", \"key\": \"<label>\"} or {\"scope\": \"NAMESPACE\", \"key\": \"<namespace>\"}. Anything more elaborate (byte or geo match, IP set reference, boolean compositions) is out of scope for this string escape hatch; compose aws_wafv2_web_acl directly for that. Defaults to none, so no rate limiting applies unless declared."
+  description = "Rate-based rules, keyed by a short logical name that becomes the rule's name (unique across managed_rule_groups, rate_based_rules, and ip_set_rules) and, stripped of non-alphanumeric characters, its CloudWatch metric name. limit is the request count in a trailing 5-minute window that trips the rule, between AWS's documented bounds of 10 and 2,000,000,000 (the WAFv2 API's RateBasedStatement.Limit range). aggregate_key_type buckets requests by source IP (IP, the default) or by the IP found in a trusted X-Forwarded-For header with a MATCH fallback, so a request missing the header still counts (FORWARDED_IP) — only safe behind a proxy you control that overwrites that header, since otherwise the client sets it and can rotate it to evade the limit; AWS's CUSTOM_KEYS aggregation is out of scope. priority must be unique across every rule in the ACL. action is block (default), count, captcha, or challenge. scope_down_statement_json narrows which requests count toward the limit; this module renders exactly one shape, a label match against a label an earlier rule in the same ACL added — {\"scope\": \"LABEL\", \"key\": \"<label>\"} or {\"scope\": \"NAMESPACE\", \"key\": \"<namespace>\"}. Anything more elaborate (byte or geo match, IP set reference, boolean compositions) is out of scope for this string escape hatch; compose aws_wafv2_web_acl directly for that. Defaults to none, so no rate limiting applies unless declared."
   type = map(object({
     limit                     = number
     aggregate_key_type        = optional(string, "IP")
@@ -127,8 +127,8 @@ variable "rate_based_rules" {
   }
 
   validation {
-    condition     = alltrue([for r in values(var.rate_based_rules) : r.limit >= 100 && r.limit <= 2000000000])
-    error_message = "Every rate_based_rules limit must be between 100 and 2000000000 requests per 5-minute window, AWS's documented bounds for a rate-based rule."
+    condition     = alltrue([for r in values(var.rate_based_rules) : r.limit >= 10 && r.limit <= 2000000000 && r.limit == floor(r.limit)])
+    error_message = "Every rate_based_rules limit must be a whole number between 10 and 2000000000 requests per 5-minute window, AWS's documented bounds for a rate-based rule."
   }
 
   validation {
@@ -196,7 +196,7 @@ variable "ip_set_rules" {
 # ---------------------------------------------------------------------------
 
 variable "custom_response_bodies" {
-  description = "Custom response bodies made available to this web ACL for a block or challenge custom response, keyed by the key a rule or the default action references. content_type is TEXT_PLAIN, TEXT_HTML, or APPLICATION_JSON; content is the body, 1 to 10240 bytes. Defaults to none."
+  description = "Custom response bodies registered on this web ACL, keyed by the key a custom_response block would reference. Nothing in this module currently references them: no rule action and no default action this module renders sets a custom_response, so declaring a body here only registers it on the ACL and does not by itself change any response a client receives (see docs/DESIGN.md: a caller that needs a rule to return one composes aws_wafv2_web_acl directly). content_type is TEXT_PLAIN, TEXT_HTML, or APPLICATION_JSON; content is the body, 1 to 10240 bytes. Defaults to none."
   type = map(object({
     content      = string
     content_type = string
@@ -221,12 +221,10 @@ variable "custom_response_bodies" {
 }
 
 variable "logging_configuration" {
-  description = "Enables web ACL logging when set. log_destination_arn is a Kinesis Data Firehose delivery stream, CloudWatch Logs log group, or S3 bucket ARN that the caller creates and owns; the module grants no permissions and creates no destination. redacted_fields lists request fields AWS omits from the logged payload, defaulting to the Authorization header even if the caller does not think to ask; the only field this module can redact is a named header (single_header) — redact the method, query string, URI path, or body by composing aws_wafv2_web_acl_logging_configuration directly. Defaults to no logging."
+  description = "Enables web ACL logging when set. log_destination_arn is a Kinesis Data Firehose delivery stream, CloudWatch Logs log group, or S3 bucket ARN that the caller creates and owns, whose name AWS requires to start with aws-waf-logs- and which, for a Firehose stream or log group, must be in the web ACL's own region (us-east-1 for scope = \"CLOUDFRONT\"); the module grants no permissions and creates no destination. redacted_fields is a list of header names (for example [\"authorization\", \"cookie\"]) AWS omits from the logged payload, each rendered as a single_header redaction, defaulting to [\"authorization\"] even if the caller does not think to ask; a named header is the only field this module can redact — redact the method, query string, URI path, or body by composing aws_wafv2_web_acl_logging_configuration directly. Defaults to no logging."
   type = object({
     log_destination_arn = string
-    redacted_fields = optional(list(object({
-      single_header = optional(string)
-    })), [{ single_header = "authorization" }])
+    redacted_fields     = optional(list(string), ["authorization"])
   })
   default = null
 
@@ -235,9 +233,17 @@ variable "logging_configuration" {
     error_message = "logging_configuration.log_destination_arn must be a Kinesis Data Firehose delivery stream ARN (arn:<partition>:firehose:<region>:<account>:deliverystream/<name>), a CloudWatch Logs log group ARN (arn:<partition>:logs:<region>:<account>:log-group:<name>), or an S3 bucket ARN (arn:<partition>:s3:::<bucket>)."
   }
 
+  # AWS rejects a logging destination whose own name (the delivery stream,
+  # log group, or bucket name, not any S3 key prefix after it) does not start
+  # with aws-waf-logs-, but only at apply time; this catches it at plan.
   validation {
-    condition     = var.logging_configuration == null ? true : alltrue([for f in var.logging_configuration.redacted_fields : f.single_header != null && length(f.single_header) > 0])
-    error_message = "Every logging_configuration.redacted_fields entry must set single_header to a non-empty header name; single_header is the only field type this module redacts."
+    condition     = var.logging_configuration == null ? true : can(regex("^arn:[^:]+:(firehose:[^:]*:[0-9]{12}:deliverystream/|logs:[^:]*:[0-9]{12}:log-group:|s3:::)aws-waf-logs-", var.logging_configuration.log_destination_arn))
+    error_message = "logging_configuration.log_destination_arn must name a destination whose name starts with \"aws-waf-logs-\" (for example arn:aws:logs:us-east-1:123456789012:log-group:aws-waf-logs-example or arn:aws:s3:::aws-waf-logs-example). AWS WAF requires that prefix on every Firehose delivery stream, CloudWatch Logs log group, and S3 bucket it logs to, and otherwise fails only at apply time."
+  }
+
+  validation {
+    condition     = var.logging_configuration == null ? true : alltrue([for h in var.logging_configuration.redacted_fields : h != null && length(h) > 0])
+    error_message = "Every logging_configuration.redacted_fields entry must be a non-empty header name."
   }
 }
 
